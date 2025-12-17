@@ -212,3 +212,4 @@ migrations/
 # Static
 static/
 staticfiles/
+media/
