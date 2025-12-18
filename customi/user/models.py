@@ -22,10 +22,12 @@ class CustomUser(AbstractUser):
         GUEST = 'guest', _('Guest')
 
     phone = models.CharField(
+        max_length=13,
         unique=True,
         validators=[AuthValidator.phone_validator]
     )
     role = models.CharField(
+        max_length=8,
         choices=UserRole,
         default=UserRole.CUSTOMER
     )
@@ -41,6 +43,7 @@ class Address(models.Model):
     city = models.CharField(max_length=50)
     details = models.TextField()
     zip_code = models.CharField(
+        max_length=10,
         unique=True,
         null=True,
         validators=[AuthValidator.zip_code_validator]

@@ -12,7 +12,7 @@ class ProductManager(models.Manager):
 
 
 class Product(models.Model):
-    name = models.CharField(unique=True)
+    name = models.CharField(max_length=50, unique=True)
     image = models.ImageField(upload_to=PRODUCT_MEDIA)
     category = models.ForeignKey("Category", on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
@@ -31,7 +31,7 @@ class StoreManager(models.Manager):
 
 
 class Store(models.Model):
-    name = models.CharField()
+    name = models.CharField(max_length=50)
     created_at = models.DateTimeField(default=datetime.now)  # read-only for sellers
     seller = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     logo = models.ImageField(upload_to=STORE_MEDIA / "logo")
@@ -68,7 +68,7 @@ class ProductStore(models.Model):
 
 
 class Category(models.Model):
-    name = models.CharField(unique=True)
+    name = models.CharField(max_length=20, unique=True)
     parent = models.ForeignKey("Category", on_delete=models.CASCADE)
 
 

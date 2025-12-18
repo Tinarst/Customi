@@ -17,7 +17,7 @@ class Order(models.Model):
 
     user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(choices=OrderStatus)
+    status = models.CharField(max_length=10, choices=OrderStatus)
     shipping_address = models.ForeignKey(Address, on_delete=models.SET_NULL, null=True)
     coupon = models.ForeignKey(Coupon, on_delete=models.PROTECT, null=True)
     total_amount = models.FloatField()
@@ -39,7 +39,7 @@ class Payment(models.Model):
         CANCELED = "canceled", _("Canceled")
 
     order = models.OneToOneField(Order, on_delete=models.PROTECT, unique=True)
-    status = models.CharField(default=PaymentStatus.PAID, choices=PaymentStatus)
+    status = models.CharField(max_length=8, default=PaymentStatus.PAID, choices=PaymentStatus)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateField(auto_now_add=True, auto_now=True)
     

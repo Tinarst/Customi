@@ -24,4 +24,4 @@ class Coupon(models.Model):
     created_at = models.DateTimeField(default=datetime.now)
     expire_date = models.DateField(null=True)
     expire_time = models.TimeField(null=True)
-    type = models.CharField(default=CouponType.PERCENT, choices=CouponType)
+    type = models.CharField(max_length=10, default=CouponType.PERCENT, choices=CouponType)
