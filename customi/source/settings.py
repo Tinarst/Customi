@@ -12,6 +12,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+from datetime import timedelta
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,12 +30,13 @@ SECRET_KEY = 'django-insecure-83ul7m8j8d^xtf^=bcc)a^g_iddo=!9h2%t-@rce--k$sk_ivt
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    'corsheaders',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -39,7 +44,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'user',
+    'django_filters',
+    'account',
     'stock',
     'cart',
     'order',
@@ -48,6 +54,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -109,6 +116,21 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES":
+        [
+            'rest_framework_simplejwt.authentication.JWTAuthentication'
+        ],
+    "DEFAULT_PAGINATION_CLASS": 'rest_framework.pagination.PageNumberPagination',
+    "PAGE_SIZE": 10,
+    "DEFAULT_FILTER_BACKEND": 'django_filter.rest_framework.DjangoFilterBackend'
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'AUTH_HEADER_TYPES': ('Bearer',)
+}
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
@@ -132,8 +154,34 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-AUTH_USER_MODEL = 'user.CustomUser'
+AUTH_USER_MODEL = 'account.CustomUser'
+# Source - https://stackoverflow.com/q
+# Posted by user9808476, modified by community. See post 'Timeline' for change history
+# Retrieved 2025-12-22, License - CC BY-SA 4.0
+
+# CORS
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+]
+
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://localhost:8000',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:8000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
+
 
 MEDIA_ROOT = BASE_DIR / 'media'
-PRODUCT_MEDIA = MEDIA_ROOT / 'products'
-STORE_MEDIA = MEDIA_ROOT / 'store'
+MEDIA_URL = '/media/'
+USER_MEDIA = 'user'
+PRODUCT_MEDIA = 'products'
+PRODUCT_CATEGORY_MEDIA = f'{PRODUCT_MEDIA}/category'
+STORE_MEDIA = 'store'
+BASE_OTP_URL = os.getenv("BASE_OTP_URL")
+AUTHORIZATION_OTP_API_KEY = os.getenv("AUTHORIZATION_OTP_API_KEY")
+PATTERN_CODE_OTP = os.getenv("PATTERN_CODE_OTP")
