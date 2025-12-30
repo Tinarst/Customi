@@ -1,5 +1,9 @@
 Django==5.2.8
 djangorestframework
+djangorestframework_simplejwt
 python-dotenv
 psycopg2-binary
 django-filter
+Pillow
+requests
+djangorestframework-simplejwt
