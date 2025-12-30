@@ -213,3 +213,7 @@ migrations/
 static/
 staticfiles/
 media/
+
+#front
+frontend/
+fixture/
