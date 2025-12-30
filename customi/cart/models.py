@@ -1,8 +1,10 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from user.models import CustomUser
+from account.models import CustomUser
 from stock.models import ProductStore
-from datetime import datetime
+from datetime import datetime, time
+import random
+import string
 
 
 class Cart(models.Model):
@@ -21,7 +23,33 @@ class Coupon(models.Model):
         PERCENT = "percent", _("Percentage")
         UNIT = "unit", _("Currency unit")
 
+    code = models.CharField(max_length=12, blank=True)
+    value = models.FloatField()
+    usage_limit = models.IntegerField()
     created_at = models.DateTimeField(default=datetime.now)
     expire_date = models.DateField(null=True)
-    expire_time = models.TimeField(null=True)
+    expire_time = models.TimeField(default=time(0, 0))
     type = models.CharField(max_length=10, default=CouponType.PERCENT, choices=CouponType)
+    
+    @property
+    def expire_at(self):
+        if self.expire_date:
+            return datetime.combine(self.expire_date, self.expire_time)
+        return None
+    
+    @property
+    def is_active(self):
+        if self.expire_at:
+            return bool(self.expire_at > datetime.now())
+        return True
+
+    @property
+    def __random_code(self):
+        chars = string.ascii_letters + string.digits
+        code = ''.join(random.choices(chars, 12))
+        return code
+        
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = self.__random_code
+        return super().save(*args, **kwargs)
