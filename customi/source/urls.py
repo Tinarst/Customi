@@ -14,9 +14,37 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
 from django.urls import path
+from django.conf import settings
+from django.conf.urls.static import static
+from rest_framework import routers
+from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView
 
-urlpatterns = [
-    path('admin/', admin.site.urls),
-]
+from stock.views import CategoryList, CategoryDetail, ProductViewSet, StoreDetail
+from account.views import RequestOTP, VerifyOTP, AccountViewSet
+
+router = routers.DefaultRouter()
+router.register("api/products", ProductViewSet)
+router.register("api/myuser", AccountViewSet)
+
+urlpatterns = (
+    [
+        path("admin/", admin.site.urls),
+    ]
+    + [ 
+       path("api/accounts/token/refresh/", TokenRefreshView.as_view()),
+    ] 
+    + [
+        path("api/categories/", CategoryList.as_view()),
+        path("api/categories/<int:pk>/", CategoryDetail.as_view(), name="category_detail"),
+    ]
+    + [
+        path("api/stores/<int:pk>/", StoreDetail.as_view())
+    ] +
+    [
+        path("api/accounts/request-otp/", RequestOTP.as_view()),
+        path("api/accounts/verify-otp/", VerifyOTP.as_view())
+    ]
+) + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + router.urls
