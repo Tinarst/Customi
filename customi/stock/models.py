@@ -1,23 +1,173 @@
 from django.db import models
-from django.db.models import Q
+from django.db.models import Q, Avg, Count, Sum, Min, QuerySet, Max, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.utils.translation import gettext_lazy as _
-from user.models import CustomUser
-from source.settings import PRODUCT_MEDIA, STORE_MEDIA
+from account.models import CustomUser
+from source.settings import PRODUCT_MEDIA, PRODUCT_CATEGORY_MEDIA, STORE_MEDIA
 from datetime import datetime
+from core.models.base import BaseConfig
+
+
+class CategoryManager(models.Manager): ...
+
+
+
+class Category(models.Model):
+    name = models.CharField(max_length=20, unique=True)
+    image = models.ImageField(upload_to=PRODUCT_CATEGORY_MEDIA, null=True)
+    description = models.TextField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    parent = models.ForeignKey(
+        "Category", on_delete=models.CASCADE, null=True, blank=True
+    )
+
+    def __str__(self):
+        return self.name
+
+
+
+class ProductImage(models.Model):
+    image = models.ImageField(upload_to=PRODUCT_MEDIA)
+    product = models.ForeignKey(
+        "Product", on_delete=models.CASCADE, related_name="productimage_product"
+    )
+
+class ProductQuerySet(QuerySet):
+    def with_best_seller(self):
+        productstore_subquery = (
+            ProductStore
+            .objects
+            .filter(product=OuterRef("pk"))
+            .annotate(total_sold=Coalesce(Sum("orderitem_productstore__quantity"), 0))
+            .order_by("-total_sold")
+        ).values("pk")[:1]
+
+        return (
+            self
+            .annotate(
+                best_seller=Subquery(productstore_subquery)
+            )
+        )
+    
+    def with_rating(self):
+        return (
+            self
+            .annotate(
+                rating=Coalesce(Sum("productstore_product__feedback_productstore__rating"), 0)
+            )
+        )
+    
+    def with_best_price(self):
+        return (
+            self
+            .annotate(
+                best_price=Coalesce(Min("productstore_product__price"), 0.0)
+            )
+        )
+    
+    def with_stock(self):
+        return (
+            self
+            .annotate(
+                stock=Coalesce(Sum("productstore_product__stock"), 0)
+            )
+        )
+    
+    def products_with_parent(self, category: int):
+        categories = set()
+        
+        def get_category(category):
+            categories.add(category)
+            category = Category.objects.get(pk=int(category))
+            children_cat = category.category_set.all().values_list("pk", flat=True)
+            for child in children_cat:
+                if child not in categories:
+                    get_category(child)
+            
+        
+        get_category(int(category))
+
+        return (
+            self
+            .filter(
+                category__id__in=categories
+            )
+        )
+
+
 
 
 class ProductManager(models.Manager):
     def get_queryset(self):
-        return super().get_queryset().filter(is_active=True)
+        return ProductQuerySet(self.model, using=self._db).select_related("category").filter(is_active=True)
 
 
-class Product(models.Model):
-    name = models.CharField(max_length=50, unique=True)
-    image = models.ImageField(upload_to=PRODUCT_MEDIA)
-    category = models.ForeignKey("Category", on_delete=models.CASCADE)
-    is_active = models.BooleanField(default=True)
+    def with_rating(self):
+        """Return product queryset include avg rate"""
+
+        return self.get_queryset().with_rating()
+
+
+    def with_best_price(self):
+        """Return product queryset include best productstore price"""
+        
+        return self.get_queryset().with_best_price()
+
+
+    def with_stock(self):
+        """Return product queryset include count of instock productstore"""
+        
+        return self.get_queryset().with_stock()
     
+        
+    def products_with_parent(self, category, parent=None):
+        return (
+            self
+            .get_queryset()
+            .products_with_parent(category)
+        )
+        
+
+
+class Product(BaseConfig):
+    name = models.CharField(max_length=50, unique=True)
+    category = models.ForeignKey(
+        to="Category",
+        on_delete=models.CASCADE,
+        null=True,
+        related_name="product_category",
+    )
+    description = models.TextField(null=True)
+    is_active = models.BooleanField(default=True)
+
     objects = ProductManager()
+
+
+    @staticmethod
+    def active_filtering(func):
+        def wrapper(self, *args, **kwargs):
+            active = self.is_active
+            if active:
+                return func(self, *args, **kwargs)
+            return None
+
+        return wrapper
+
+
+    @property
+    @active_filtering
+    def best_seller(self):
+        best = (
+            self
+            .productstore_product
+            .annotate(
+                total_sold=Coalesce(Sum("orderitem_productstore__quantity"), 0)
+            )
+            .order_by("-total_sold")
+            .first()
+        )
+        return best if best else None
+
 
 
 class StoreManager(models.Manager):
@@ -34,7 +184,7 @@ class Store(models.Model):
     name = models.CharField(max_length=50)
     created_at = models.DateTimeField(default=datetime.now)  # read-only for sellers
     seller = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    logo = models.ImageField(upload_to=STORE_MEDIA / "logo")
+    logo = models.ImageField(upload_to=f"{STORE_MEDIA}/logo")
     description = models.TextField(null=True)
 
     objects = StoreManager()
@@ -50,26 +200,25 @@ class ProductStoreManager(models.Manager):
             super()
             .get_queryset()
             .select_related("product", "store")
-            .filter(Q(store__seller__is_active=True) & Q(product__is_active=True))
+            .filter(store__seller__is_active=True)
         )
 
+    def best_price(self):
+        return self.get_queryset().select_related("product").order_by("-price")
 
-class ProductStore(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    store = models.ForeignKey(Store, on_delete=models.CASCADE)
+
+class ProductStore(BaseConfig):
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="productstore_product"
+    )
+    store = models.ForeignKey(
+        Store, on_delete=models.CASCADE, related_name="productstore_store"
+    )
     price = models.FloatField()
-    on_stock = models.BooleanField(default=True)
-    count = models.PositiveIntegerField(null=True)
-    description = models.TextField(null=True)
-    discount = models.PositiveSmallIntegerField(default=0)
-    created_at = models.DateTimeField(default=datetime.now)
+    stock = models.PositiveIntegerField(null=True)
+    discount_price = models.FloatField(null=True, blank=True)
 
     objects = ProductStoreManager()
-
-
-class Category(models.Model):
-    name = models.CharField(max_length=20, unique=True)
-    parent = models.ForeignKey("Category", on_delete=models.CASCADE)
 
 
 class Wishlist(models.Model):
@@ -78,19 +227,23 @@ class Wishlist(models.Model):
 
 
 class Feedback(models.Model):
-    
-    class RateChoice(models.IntegerChoices):
-        ONE = 1, _('One')
-        TWO = 2, _('Two')
-        THREE = 3, _('Three')
-        FOUR = 4, _('Four')
-        FIVE = 5, _('Five')
 
-    product_store = models.ForeignKey(ProductStore, on_delete=models.CASCADE)
+    class RatingChoice(models.IntegerChoices):
+        ONE = 1, _("One")
+        TWO = 2, _("Two")
+        THREE = 3, _("Three")
+        FOUR = 4, _("Four")
+        FIVE = 5, _("Five")
+
+    product_store = models.ForeignKey(
+        ProductStore, on_delete=models.CASCADE, related_name="feedback_productstore"
+    )
     user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True)
-    rate = models.IntegerField(choices=RateChoice)
-    review = models.TextField(null=True)
-    created_at = models.DateTimeField(default=datetime.now)
-    
+    rating = models.IntegerField(choices=RatingChoice)
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
     class Meta:
-        unique_together = ['user', 'product_store']
+        unique_together = ["user", "product_store"]
+    
+
