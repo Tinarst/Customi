@@ -1,6 +1,7 @@
 from rest_framework import serializers
-from stock.models import Category, Product, ProductStore, ProductImage, Store, Feedback
+from stock.models import Category, Product, ProductStore, ProductImage, Store, ProductFeedback, StoreFeedback
 from account.serializers import AccountSerializer
+from account.models import CustomUser
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -81,6 +82,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "rating",
             "stock",
             "images",
+            "created_at",
         ]
 
 
@@ -96,12 +98,13 @@ class ProductDetailSerializer(ProductSerializer):
 
 
 
-        
+class ProductFeedbackSerializer(serializers.ModelSerializer):
+    user = AccountSerializer(read_only=True)
+    id = serializers.IntegerField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
 
-class FeedbackSerializer(serializers.ModelSerializer):
-    user = AccountSerializer()
     class Meta:
-        model = Feedback
+        model = ProductFeedback
         fields = [
             "id",
             "user",
@@ -109,3 +112,58 @@ class FeedbackSerializer(serializers.ModelSerializer):
             "comment",
             "created_at"
         ]
+    
+    def validate(self, validated_data: dict):
+        user = self.context["user"]
+        product = self.context["product"]
+        if self.Meta.model.objects.filter(product=product, user=user).exists():
+            print(f"User {user} has been commented recently")
+            raise serializers.ValidationError(f"User {user} has been commented recently")
+        
+        return validated_data
+
+    
+    def create(self, validated_data: dict):
+        product_feedback = self.Meta.model(
+            user= self.context["user"],
+            product=self.context["product"],
+            **validated_data
+        )
+        product_feedback.save()
+        
+        return product_feedback
+        
+
+class StoreFeedbackSerializer(serializers.ModelSerializer):
+    user = AccountSerializer(read_only=True)
+    id = serializers.IntegerField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    
+    class Meta:
+        model = StoreFeedback
+        fields = [
+            "id",
+            "user",
+            "rating",
+            "comment",
+            "created_at"
+        ]
+    
+    
+    def validate(self, validated_data: dict):
+        user = self.context["user"]
+        store = self.context["store"]
+        if self.Meta.model.objects.filter(store=store, user=user).exists():
+            print(f"User {user} has been commented recently")
+            raise serializers.ValidationError(f"User {user} has been commented recently")
+        
+        return validated_data
+    
+    def create(self, validated_data: dict):
+        store_feedback = self.Meta.model(
+            user=self.context["user"],
+            store=self.context["store"],
+            **validated_data
+        )
+        store_feedback.save()
+        return store_feedback
