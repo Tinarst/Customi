@@ -53,7 +53,7 @@ class ProductQuerySet(QuerySet):
         return (
             self
             .annotate(
-                rating=Coalesce(Sum("productstore_product__feedback_productstore__rating"), 0)
+                rating=Coalesce(Avg("productfeedback_product__rating"), 0.0)
             )
         )
     
@@ -163,10 +163,13 @@ class Product(BaseConfig):
             .annotate(
                 total_sold=Coalesce(Sum("orderitem_productstore__quantity"), 0)
             )
-            .order_by("-total_sold")
+            .order_by("-total_sold", "price")
             .first()
         )
         return best if best else None
+    
+    def __str__(self):
+        return self.name
 
 
 
@@ -192,6 +195,9 @@ class Store(models.Model):
     @property
     def is_active(self):
         return self.seller.is_active
+    
+    def __str__(self):
+        return self.name
 
 
 class ProductStoreManager(models.Manager):
@@ -219,6 +225,9 @@ class ProductStore(BaseConfig):
     discount_price = models.FloatField(null=True, blank=True)
 
     objects = ProductStoreManager()
+    
+    def __str__(self):
+        return f"from {self.store} have {self.product}"
 
 
 class Wishlist(models.Model):
@@ -235,15 +244,31 @@ class Feedback(models.Model):
         FOUR = 4, _("Four")
         FIVE = 5, _("Five")
 
-    product_store = models.ForeignKey(
-        ProductStore, on_delete=models.CASCADE, related_name="feedback_productstore"
-    )
-    user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True)
     rating = models.IntegerField(choices=RatingChoice)
     comment = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ["user", "product_store"]
-    
+        abstract = True
 
+class ProductFeedback(Feedback):
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="productfeedback_product"
+    )
+    user = models.ForeignKey(
+        CustomUser, on_delete=models.SET_NULL, null=True, related_name="productfeedback_user"
+    )
+    
+    def __str__(self):
+        return f"user {self.user} to {self.product.name}"
+
+class StoreFeedback(Feedback):
+    store = models.ForeignKey(
+        Store, on_delete=models.CASCADE, related_name="storefeedback_store"
+    )
+    user = models.ForeignKey(
+        CustomUser, on_delete=models.SET_NULL, null=True, related_name="storefeedback_user"
+        )
+    
+    def __str__(self):
+        return f"user {self.user} to {self.store.name}"
