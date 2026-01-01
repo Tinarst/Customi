@@ -1,6 +1,6 @@
 from django.shortcuts import render, get_object_or_404
-from django.contrib.auth import authenticate
-from rest_framework.viewsets import ModelViewSet
+from django.contrib.auth import authenticate, get_user_model
+from rest_framework.viewsets import ModelViewSet, GenericViewSet
 from rest_framework.mixins import CreateModelMixin
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import IsAuthenticated
@@ -84,7 +84,6 @@ class VerifyOTP(GenericAPIView):
         return access_token, refresh_token
 
     def post(self, request, *args, **kwargs):
-        print(request.data)
         phone = self.request.data.get("username")
         otp = int(self.request.data.get("password"))
         otp_object = get_object_or_404(
@@ -95,7 +94,6 @@ class VerifyOTP(GenericAPIView):
         user = get_user_or_404(phone)
         access_token, refresh_token = self.create_token(user)
         otp_object.delete()
-        
         data = {
             "access": str(access_token),
             "refresh": str(refresh_token),
@@ -105,9 +103,30 @@ class VerifyOTP(GenericAPIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
-class AccountViewSet(ModelViewSet):
+
+class AccountView(GenericAPIView):
     permission_classes = [IsAuthenticated]
     queryset = CustomUser.objects.all()
     serializer_class = AccountSerializer
+    model = get_user_model()
+
+    def __retrieve_user(self):
+        if self.request.user and self.request.user.is_authenticated:
+            return self.request.user
+        return None
+        
+    def get(self, request, *args, **kwargs):
+        user = self.__retrieve_user()
+        if user is None:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        serializer = self.get_serializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
-    
+    def put(self, request, *args, **kwargs):
+        user = self.__retrieve_user()
+        if user is None:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        serializer = self.get_serializer(user, data=request.data, partial=True)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
