@@ -1,46 +1,19 @@
 from rest_framework import serializers
 from account.models import CustomUser, OTPCenter, Address
 
-class AddressSerializer(serializers.ModelSerializer):
-    country = serializers.CharField(default="Iran")
-    class Meta:
-        model = Address
-        fields = "__all__"
-
-class AccountSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField(read_only=True)
-    status = serializers.BooleanField(source="is_active")
-    is_seller = serializers.BooleanField(read_only=True)
-    address = AddressSerializer(source="address_user", many=True)
-    
-    class Meta:
-        model = CustomUser
-        fields = [
-            "id",
-            "username",
-            "status",
-            "is_seller",
-            "email",
-            "phone",
-            "first_name",
-            "last_name",
-            "picture",
-            "address"
-        ]
-
-
-class BaseOTPSerializer(serializers.Serializer):
-    """Use for otp verify"""
-
-    username = serializers.CharField()
-    password = serializers.CharField(required=False)
-
+class UsernameValidateSerializerMixin:
     def validate_username(self, value):
         if len(value) not in (10, 11, 13) or not value.isdigit():
             print("Invalid phone number")
             raise serializers.ValidationError("Invalid phone number")
         return value
 
+
+class BaseOTPSerializer(serializers.Serializer, UsernameValidateSerializerMixin):
+    username = serializers.CharField()
+    password = serializers.CharField(required=False)
+
+    
     def validate(self, validated_data: dict):
         user_phone = validated_data.get("username")
         if OTPCenter.active(user_phone) and not validated_data.get("password", None):
@@ -88,3 +61,44 @@ class OTPloginSerializer(BaseOTPSerializer):
         return value
 
 
+class AddressSerializer(serializers.ModelSerializer):
+    country = serializers.CharField(default="Iran")
+    class Meta:
+        model = Address
+        fields = "__all__"
+
+class AccountSerializer(serializers.ModelSerializer, UsernameValidateSerializerMixin):
+    id = serializers.IntegerField(read_only=True)
+    status = serializers.BooleanField(source="is_active", read_only=True)
+    is_seller = serializers.BooleanField(read_only=True)
+    address = AddressSerializer(source="address_user", many=True, read_only=True)
+    
+    class Meta:
+        model = CustomUser
+        fields = [
+            "id",
+            "username",
+            "status",
+            "is_seller",
+            "email",
+            "phone",
+            "first_name",
+            "last_name",
+            "picture",
+            "address"
+        ]
+    
+    def validate_phone(self, value):
+        value = super().validate_username(value)
+        if CustomUser.objects.filter(phone__icontains=value[-10:]).exists() and value != self.instance.phone:
+            print("Phone number is already exist")
+            raise serializers.ValidationError("Phone number is already exist")
+        return value
+    
+    def validate_email(self, value):
+        if CustomUser.objects.filter(email=value.lower()).exists():
+            print("email is already exist")
+            raise serializers.ValidationError("Email number is already exist")
+        return value.lower()
+        
+        
