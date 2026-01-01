@@ -96,9 +96,10 @@ class AccountSerializer(serializers.ModelSerializer, UsernameValidateSerializerM
         return value
     
     def validate_email(self, value):
-        if CustomUser.objects.filter(email=value.lower()).exists():
+        value = value.lower()
+        if CustomUser.objects.filter(email=value.lower()).exists() and value != self.instance.email:
             print("email is already exist")
             raise serializers.ValidationError("Email number is already exist")
-        return value.lower()
+        return value
         
         
