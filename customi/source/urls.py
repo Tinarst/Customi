@@ -22,12 +22,13 @@ from django.conf.urls.static import static
 from rest_framework import routers
 from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView
 
-from stock.views import CategoryList, CategoryDetail, ProductViewSet, StoreDetail
-from account.views import RequestOTP, VerifyOTP, AccountViewSet
+from stock.views import CategoryViewSet, ProductViewSet, StoreViewSet
+from account.views import RequestOTP, VerifyOTP, AccountView
 
 router = routers.DefaultRouter()
 router.register("api/products", ProductViewSet)
-router.register("api/myuser", AccountViewSet)
+router.register("api/stores", StoreViewSet)
+router.register("api/categories", CategoryViewSet)
 
 urlpatterns = (
     [
@@ -35,16 +36,9 @@ urlpatterns = (
     ]
     + [ 
        path("api/accounts/token/refresh/", TokenRefreshView.as_view()),
-    ] 
-    + [
-        path("api/categories/", CategoryList.as_view()),
-        path("api/categories/<int:pk>/", CategoryDetail.as_view(), name="category_detail"),
-    ]
-    + [
-        path("api/stores/<int:pk>/", StoreDetail.as_view())
-    ] +
-    [
+    ] + [
         path("api/accounts/request-otp/", RequestOTP.as_view()),
-        path("api/accounts/verify-otp/", VerifyOTP.as_view())
+        path("api/accounts/verify-otp/", VerifyOTP.as_view()),
+        path("api/myuser/", AccountView.as_view())
     ]
 ) + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + router.urls
