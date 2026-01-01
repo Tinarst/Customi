@@ -1,37 +1,37 @@
-from rest_framework.generics import ListAPIView, RetrieveAPIView, get_object_or_404
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.generics import ListAPIView, RetrieveAPIView, get_object_or_404, ListCreateAPIView
+from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.filters import OrderingFilter
+from rest_framework.filters import OrderingFilter, SearchFilter
 from django_filters import FilterSet
+import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
-from stock.models import Category, Product, Store, Feedback
+from stock.models import Category, Product, Store, ProductFeedback, StoreFeedback
 from stock.serializers import (
     CategorySerializer,
     ProductSerializer,
     ProductDetailSerializer,
     StoreSerializer,
-    FeedbackSerializer
+    ProductFeedbackSerializer,
+    StoreFeedbackSerializer
 )
 
-
-class CategoryList(ListAPIView):
+class CategoryViewSet(ModelViewSet):
     queryset = Category.objects.select_related("parent").order_by("-pk")
-    serializer_class = CategorySerializer
-
-class CategoryDetail(RetrieveAPIView):
-    queryset = Category.objects.select_related("parent")
     serializer_class = CategorySerializer
 
 
 class ProductFilter(FilterSet):
+    name = django_filters.CharFilter(
+        field_name="name",
+        lookup_expr="icontains"
+    )
     class Meta:
         model = Product
-        fields = {
-            "name": ["icontains"]
-        }
+        fields = ["name"]
+        
     def filter_queryset(self, queryset):
         queryset = super().filter_queryset(queryset)
         
@@ -55,9 +55,9 @@ class ProductViewSet(ModelViewSet):
     queryset = Product.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly]
     lookup_url_kwarg = "pk"
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, OrderingFilter, SearchFilter]
     filterset_class = ProductFilter
-    ordering_fields = ["-rating", "-created_at"]
+    ordering_fields = ["created_at", "rating"]
 
     def get_queryset(self):
         return Product.objects.with_best_price().with_rating().with_stock()
@@ -71,21 +71,74 @@ class ProductViewSet(ModelViewSet):
     @action(methods=["GET"], detail=True)
     def review_list(self, request, pk=None):
         product = self.get_object()
-        queryset = Feedback.objects.filter(product_store__product=product)
+        queryset = ProductFeedback.objects.filter(product=product)
     
         page = self.paginate_queryset(queryset)
         if page:
-            serializer = FeedbackSerializer(page, many=True)
+            serializer = ProductFeedbackSerializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
-        serializer = FeedbackSerializer(queryset, many=True)
+        serializer = ProductFeedbackSerializer(queryset, many=True)
+        print(serializer.data)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(methods=["POST"], detail=True)
+    def review_create(self, request, pk=None):
+        product = self.get_object()
+
+        serializer = ProductFeedbackSerializer(
+            data=self.request.data,
+            context = {
+                "product": product,
+                "user": self.request.user
+            }
+        )
+
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class StoreDetail(RetrieveAPIView):
+class StoreViewSet(ModelViewSet):
     queryset = Store.objects.all()
     serializer_class = StoreSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
     
+    @action(methods=["GET"], detail=True)
+    def review_list(self, request, pk=None):
+        store = self.get_object()
+        queryset = StoreFeedback.objects.filter(store=store)
     
-class FeedbackViewSet(ModelViewSet):
-    queryset = Feedback.objects.select_related("user", "product_store")
+        page = self.paginate_queryset(queryset)
+        if page:
+            serializer = StoreFeedbackSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = StoreFeedbackSerializer(queryset, many=True)
+        print(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(methods=["POST"], detail=True)
+    def review_create(self, request, pk=None):
+        store = self.get_object()
+
+        serializer = StoreFeedbackSerializer(
+            data=self.request.data,
+            context = {
+                "store": store,
+                "user": self.request.user
+            }
+        )
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+
+
+class StoreFeedbackView(ListCreateAPIView):
+    queryset = StoreFeedback.objects.select_related("user", "store")
+    serializer_class = StoreFeedbackSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    
