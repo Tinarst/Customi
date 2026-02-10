@@ -1,8 +1,12 @@
-from django.shortcuts import render, get_object_or_404
-from django.contrib.auth import authenticate, get_user_model
-from rest_framework.viewsets import ModelViewSet, GenericViewSet
-from rest_framework.mixins import CreateModelMixin
-from rest_framework.generics import GenericAPIView
+from django.shortcuts import get_object_or_404
+from django.contrib.auth import get_user_model
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.mixins import UpdateModelMixin, DestroyModelMixin, ListModelMixin, RetrieveModelMixin
+from rest_framework.generics import (
+    GenericAPIView,
+    ListAPIView,
+    RetrieveUpdateDestroyAPIView,
+)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -10,11 +14,12 @@ from rest_framework import status
 from rest_framework.decorators import action, api_view
 import requests
 from rest_framework_simplejwt.tokens import RefreshToken
-from account.models import OTPCenter, CustomUser
+from account.models import OTPCenter, CustomUser, Address
 from account.serializers import (
     OTPRegisterationSerializer,
     OTPloginSerializer,
-    AccountSerializer
+    AccountSerializer,
+    AddressSerializer,
 )
 from source.settings import BASE_OTP_URL, AUTHORIZATION_OTP_API_KEY, PATTERN_CODE_OTP
 
@@ -71,7 +76,6 @@ class RequestOTP(GenericAPIView):
             "Content-Type": "application/json",
         }
         response = requests.post(url=BASE_OTP_URL, headers=header, json=payload)
-        print(response.json())
         return response.json()["meta"]["status"]
 
 
@@ -97,14 +101,13 @@ class VerifyOTP(GenericAPIView):
         data = {
             "access": str(access_token),
             "refresh": str(refresh_token),
-            "user": AccountSerializer(user).data
+            "user": AccountSerializer(user).data,
         }
 
         return Response(data, status=status.HTTP_200_OK)
 
 
-
-class AccountView(GenericAPIView):
+class AccountView(GenericAPIView, UpdateModelMixin):
     permission_classes = [IsAuthenticated]
     queryset = CustomUser.objects.all()
     serializer_class = AccountSerializer
@@ -114,15 +117,16 @@ class AccountView(GenericAPIView):
         if self.request.user and self.request.user.is_authenticated:
             return self.request.user
         return None
-        
+
     def get(self, request, *args, **kwargs):
         user = self.__retrieve_user()
         if user is None:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
         serializer = self.get_serializer(user)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
+
     def put(self, request, *args, **kwargs):
+        
         user = self.__retrieve_user()
         if user is None:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
@@ -130,3 +134,28 @@ class AccountView(GenericAPIView):
         if serializer.is_valid(raise_exception=True):
             serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class CreateAddressMixin:
+    def create(self, request, *args, **kwargs):
+        context = {"user": request.user}
+        serializer = self.get_serializer(data=request.data, context=context)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class AddressViewSet(CreateAddressMixin, ModelViewSet):
+    queryset = Address.objects.select_related("user")
+    permission_classes = [IsAuthenticated]
+    serializer_class = AddressSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = user.address_user.all()
+        return queryset
+
+    def update(self, request, *args, **kwargs):
+        self.kwargs["partial"] = True
+        return super().update(request, *args, **kwargs)
