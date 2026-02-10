@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from account.models import CustomUser, OTPCenter, Address
 
+
 class UsernameValidateSerializerMixin:
     def validate_username(self, value):
         if len(value) not in (10, 11, 13) or not value.isdigit():
@@ -13,7 +14,6 @@ class BaseOTPSerializer(serializers.Serializer, UsernameValidateSerializerMixin)
     username = serializers.CharField()
     password = serializers.CharField(required=False)
 
-    
     def validate(self, validated_data: dict):
         user_phone = validated_data.get("username")
         if OTPCenter.active(user_phone) and not validated_data.get("password", None):
@@ -62,17 +62,51 @@ class OTPloginSerializer(BaseOTPSerializer):
 
 
 class AddressSerializer(serializers.ModelSerializer):
-    country = serializers.CharField(default="Iran")
     class Meta:
         model = Address
-        fields = "__all__"
+        fields = [
+            "id",
+            "label",
+            "country",
+            "city",
+            "state",
+            "address_line_1",
+            "address_line_2",
+            "postal_code",
+            "created_at",
+            "updated_at",
+        ]
+
+    def validate_postal_code(self, value: str):
+        if value:
+            if (
+                self.Meta.model.objects.filter(postal_code=value).exists()
+                and value != self.instance.postal_code
+            ):
+                print("Postal code already exist")
+                raise serializers.ValidationError("Postal code already exist")
+            if not value.isdigit() or not len(value) != 10:
+                print("Invalid postal code")
+                raise serializers.ValidationError("Invalid postal code")
+            return value
+        return None
+
+    def create(self, validated_data):
+        user = self.context.get("user", None)
+        if not user:
+            raise serializers.ValidationError("user not found")
+        address = self.Meta.model(**validated_data)
+        address.user = user
+        address.save()
+        return address
+
 
 class AccountSerializer(serializers.ModelSerializer, UsernameValidateSerializerMixin):
     id = serializers.IntegerField(read_only=True)
     status = serializers.BooleanField(source="is_active", read_only=True)
     is_seller = serializers.BooleanField(read_only=True)
     address = AddressSerializer(source="address_user", many=True, read_only=True)
-    
+
     class Meta:
         model = CustomUser
         fields = [
@@ -85,21 +119,27 @@ class AccountSerializer(serializers.ModelSerializer, UsernameValidateSerializerM
             "first_name",
             "last_name",
             "picture",
-            "address"
+            "address",
         ]
-    
+
     def validate_phone(self, value):
         value = super().validate_username(value)
-        if CustomUser.objects.filter(phone__icontains=value[-10:]).exists() and value != self.instance.phone:
+        if (
+            CustomUser.objects.filter(phone__icontains=value[-10:]).exists()
+            and value != self.instance.phone
+        ):
             print("Phone number is already exist")
             raise serializers.ValidationError("Phone number is already exist")
         return value
-    
+
     def validate_email(self, value):
+        if not value:
+            return None
         value = value.lower()
-        if CustomUser.objects.filter(email=value.lower()).exists() and value != self.instance.email:
+        if (
+            CustomUser.objects.filter(email=value.lower()).exists()
+            and value != self.instance.email
+        ):
             print("email is already exist")
             raise serializers.ValidationError("Email number is already exist")
         return value
-        
-        
