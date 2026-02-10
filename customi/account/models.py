@@ -72,25 +72,29 @@ class AuthValidator:
 
 
 class CustomUserManager(BaseUserManager):
+
     def create(self, phone, userType=None, *args, **kwargs):
+        from cart.models import Cart
+
         phone = CustomUser.normalize_phone(phone)
         user = CustomUser(phone=phone, *args, **kwargs)
         password = kwargs.get("password", None)
         if password is not None:
             user.set_password(password)
-            
+
         if userType and kwargs.get("role", None) is None:
             user.role = user.UserRole.SELLER
-        return user.save()
+        user.save()
+        return user
 
     def create_superuser(self, phone, username, password, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
 
         if extra_fields.get("is_staff") is not True:
-            raise ValueError("Superuser must have is_staff=True.")
+            raise ValueError("Superuser must have is_staff=True")
         if extra_fields.get("is_superuser") is not True:
-            raise ValueError("Superuser must have is_superuser=True.")
+            raise ValueError("Superuser must have is_superuser=True")
 
         return self.create(
             phone,
@@ -132,7 +136,7 @@ class CustomUser(BaseConfig, AbstractUser):
         return True if self.role == self.UserRole.SELLER else False
 
 
-class Address(models.Model):
+class Address(BaseConfig):
     user = models.ForeignKey(
         CustomUser, on_delete=models.CASCADE, related_name="address_user"
     )
@@ -145,6 +149,7 @@ class Address(models.Model):
     postal_code = models.CharField(
         max_length=10,
         unique=True,
+        null=True,
         blank=True,
         validators=[AuthValidator.postal_code_validator],
     )
