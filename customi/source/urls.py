@@ -23,12 +23,17 @@ from rest_framework import routers
 from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView
 
 from stock.views import CategoryViewSet, ProductViewSet, StoreViewSet
-from account.views import RequestOTP, VerifyOTP, AccountView
+from account.views import RequestOTP, VerifyOTP, AccountView, AddressViewSet
+from cart.views import cart_view, CartItemAPIView
+from order.views import OrderViewSet
 
 router = routers.DefaultRouter()
 router.register("api/products", ProductViewSet)
 router.register("api/stores", StoreViewSet)
 router.register("api/categories", CategoryViewSet)
+router.register("api/myuser/address", AddressViewSet)
+router.register("api/mycart/items", CartItemAPIView)
+router.register("api/orders", OrderViewSet)
 
 urlpatterns = (
     [
@@ -39,6 +44,8 @@ urlpatterns = (
     ] + [
         path("api/accounts/request-otp/", RequestOTP.as_view()),
         path("api/accounts/verify-otp/", VerifyOTP.as_view()),
-        path("api/myuser/", AccountView.as_view())
+        path("api/myuser/", AccountView.as_view()),
+    ] + [
+        path("api/mycart/", cart_view),
     ]
 ) + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + router.urls
