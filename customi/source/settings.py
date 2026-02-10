@@ -177,7 +177,7 @@ CORS_ALLOWED_ORIGINS = [
 
 
 MEDIA_ROOT = BASE_DIR / 'media'
-MEDIA_URL = '/media/'
+MEDIA_URL = 'http://127.0.0.1:8000/media/'
 USER_MEDIA = 'user'
 PRODUCT_MEDIA = 'products'
 PRODUCT_CATEGORY_MEDIA = f'{PRODUCT_MEDIA}/category'
