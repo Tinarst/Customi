@@ -217,3 +217,5 @@ media/
 #front
 frontend/
 fixture/
+
+logs
