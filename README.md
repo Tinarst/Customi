@@ -8,11 +8,10 @@ The project involves developing a comprehensive online shopping website using Dj
 - Pagination and sorting options (e.g., best selling, highest rated, newest, highest/lowest price)
 
 ### User Features (Authenticated)
-- OTP-based registration and verification via phone or email
+- OTP-based registration and verification via phone
 - JWT authentication for secure login/logout
 - Manage profile and addresses (add, update, delete)
-- Add/remove products to/from cart and wishlist
-- Apply coupons to cart
+- Add/remove products to/from cart
 - Checkout process with address selection and order confirmation
 - View order history and track status (Pending, Paid, Shipped, Delivered, Cancelled)
 - Submit product reviews and ratings (once per product after purchase)
