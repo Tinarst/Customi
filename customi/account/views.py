@@ -22,6 +22,10 @@ from account.serializers import (
     AddressSerializer,
 )
 from source.settings import BASE_OTP_URL, AUTHORIZATION_OTP_API_KEY, PATTERN_CODE_OTP
+import logging
+
+logger = logging.getLogger('customi')
+
 
 
 def get_user_or_404(phone):
@@ -53,7 +57,9 @@ class RequestOTP(GenericAPIView):
         response = self.request_otp()
         serializer = self.get_serializer()
         if response:
+            logger.info("OTP sent successfully")
             return Response(serializer.data, status=status.HTTP_200_OK)
+        logger.error("Error during connect to OTP server")
         return Response(serializer.data, status=status.HTTP_409_CONFLICT)
 
     def send_otp(self, otp, phone):
@@ -103,6 +109,7 @@ class VerifyOTP(GenericAPIView):
             "refresh": str(refresh_token),
             "user": AccountSerializer(user).data,
         }
+        logger.info("User entered successfully")
 
         return Response(data, status=status.HTTP_200_OK)
 
@@ -133,6 +140,7 @@ class AccountView(GenericAPIView, UpdateModelMixin):
         serializer = self.get_serializer(user, data=request.data, partial=True)
         if serializer.is_valid(raise_exception=True):
             serializer.save()
+        logger.info("User changed information")
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
