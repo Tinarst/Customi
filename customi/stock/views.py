@@ -1,14 +1,16 @@
 from django.db.models import Q
 from rest_framework.generics import (
-    ListAPIView,
-    RetrieveAPIView,
-    get_object_or_404,
-    ListCreateAPIView,
+    GenericAPIView,
 )
-from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
-from rest_framework.viewsets import ModelViewSet
-from rest_framework.decorators import action
+from rest_framework.mixins import UpdateModelMixin, RetrieveModelMixin
+from rest_framework.permissions import (
+    IsAuthenticated,
+    SAFE_METHODS,
+)
+from rest_framework.viewsets import ModelViewSet, GenericViewSet, ReadOnlyModelViewSet
+from rest_framework.decorators import action, permission_classes
 from rest_framework.response import Response
+from rest_framework.request import Request
 from rest_framework import status
 from rest_framework.filters import OrderingFilter, SearchFilter
 from django_filters import FilterSet
@@ -25,18 +27,36 @@ from stock.models import (
 from stock.serializers import (
     CategorySerializer,
     ProductSerializer,
-    ProductDetailSerializer,
+    ProductStoreSerializer,
+    ProductSerializerWrite,
     StoreSerializer,
     ProductFeedbackSerializer,
     StoreFeedbackSerializer,
 )
+from core.permissions import ReadOnlyOrSeller, HasStoreOrSeller
+from .mixins import CreateWithCreatorMixin
 from account.models import CustomUser
 from order.models import OrderItem, Order
+import logging
+
+logger = logging.getLogger("customi")
 
 
-class CategoryViewSet(ModelViewSet):
+class CategoryViewSet(CreateWithCreatorMixin, ModelViewSet):
     queryset = Category.objects.select_related("parent").order_by("-pk")
     serializer_class = CategorySerializer
+    permission_classes = [ReadOnlyOrSeller]
+
+    def destroy(self, request, *args, **kwargs):
+        product = Product.objects.filter(category=self.get_object()).exclude(
+            created_by=request.user
+        )
+        product_store = ProductStore.objects.filter(
+            product__category=self.get_object()
+        ).exclude(store__seller=request.user)
+        if product.exists() or product_store.exists():
+            return Response(status=status.HTTP_406_NOT_ACCEPTABLE)
+        return super().destroy(request, *args, **kwargs)
 
 
 def can_add_review(user: CustomUser, product: Product = None, store: Store = None):
@@ -78,21 +98,21 @@ class ProductFilter(FilterSet):
         return queryset
 
 
-class ProductViewSet(ModelViewSet):
+class ProductViewSet(CreateWithCreatorMixin, ModelViewSet):
     queryset = Product.objects.all()
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [ReadOnlyOrSeller]
     lookup_url_kwarg = "pk"
     filter_backends = [DjangoFilterBackend, OrderingFilter, SearchFilter]
     filterset_class = ProductFilter
-    ordering_fields = ["created_at", "rating"]
+    ordering_fields = ["created_at", "-rating"]
 
     def get_queryset(self):
-        return Product.objects.with_best_price().with_rating().with_stock()
+        return Product.objects.with_best_price().with_rating()
 
     def get_serializer_class(self, *args, **kwargs):
-        if self.kwargs.get(self.lookup_url_kwarg, None):
-            return ProductDetailSerializer
-        return ProductSerializer
+        if self.request.method in SAFE_METHODS:
+            return ProductSerializer
+        return ProductSerializerWrite
 
     @action(methods=["GET"], detail=True)
     def review_list(self, request, pk=None):
@@ -105,10 +125,12 @@ class ProductViewSet(ModelViewSet):
             return self.get_paginated_response(serializer.data)
 
         serializer = ProductFeedbackSerializer(queryset, many=True)
-        print(serializer.data)
+        if not serializer.data:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @action(methods=["POST"], detail=True)
+    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
     def review_create(self, request, pk=None):
         product = self.get_object()
 
@@ -125,11 +147,22 @@ class ProductViewSet(ModelViewSet):
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    def update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return super().update(request, *args, **kwargs)
 
-class StoreViewSet(ModelViewSet):
+    def destroy(self, request, *args, **kwargs):
+        product_store = ProductStore.objects.filter(product=self.get_object()).exclude(
+            store__seller=request.user
+        )
+        if product_store.exists():
+            return Response(status=status.HTTP_406_NOT_ACCEPTABLE)
+        return super().destroy(request, *args, **kwargs)
+
+
+class StoreViewSet(ReadOnlyModelViewSet):
     queryset = Store.objects.all()
     serializer_class = StoreSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
 
     @action(methods=["GET"], detail=True)
     def review_list(self, request, pk=None):
@@ -142,8 +175,12 @@ class StoreViewSet(ModelViewSet):
             return self.get_paginated_response(serializer.data)
 
         serializer = StoreFeedbackSerializer(queryset, many=True)
+        if not serializer.data:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @permission_classes([IsAuthenticated])
     @action(methods=["POST"], detail=True)
     def review_create(self, request, pk=None):
         store = self.get_object()
@@ -161,7 +198,31 @@ class StoreViewSet(ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class StoreFeedbackView(ListCreateAPIView):
-    queryset = StoreFeedback.objects.select_related("user", "store")
-    serializer_class = StoreFeedbackSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+class MyStoreGenericAPIView(
+    CreateWithCreatorMixin, RetrieveModelMixin, UpdateModelMixin, GenericAPIView
+):
+    queryset = Store.objects.select_related("seller")
+    serializer_class = StoreSerializer
+    permission_classes = [HasStoreOrSeller]
+    pagination_class = None
+
+    def get_object(self):
+        return self.request.user.store_user
+
+    def get(self, request, *args, **kwargs):
+        return self.retrieve(request, *args, **kwargs)
+
+    def put(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
+    def post(self, requset, *args, **kwargs):
+        return self.create(requset, *args, **kwargs)
+
+
+class MyStoreItemsViewSet(CreateWithCreatorMixin, ModelViewSet):
+    queryset = ProductStore.objects.select_related("product", "store")
+    serializer_class = ProductStoreSerializer
+    permission_classes = [ReadOnlyOrSeller]
+
+    def get_queryset(self):
+        return ProductStore.objects.filter(store__seller=self.request.user)
