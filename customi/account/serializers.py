@@ -1,10 +1,13 @@
 from rest_framework import serializers
 from account.models import CustomUser, OTPCenter, Address
+import re
 
 
 class UsernameValidateSerializerMixin:
     def validate_username(self, value):
-        if len(value) not in (10, 11, 13) or not value.isdigit():
+        pattern = r"^(?:\+98|0)9\d{9}$"
+        if not re.match(pattern, value):
+        # if len(value[-10:]) != 10 or not value[1:].isdigit():
             print("Invalid phone number")
             raise serializers.ValidationError("Invalid phone number")
         return value
@@ -35,11 +38,12 @@ class OTPRegisterationSerializer(BaseOTPSerializer):
     userType = serializers.BooleanField()
 
     def validate_username(self, value: str):
+        value = super().validate_username(value)
         if CustomUser.objects.filter(phone__icontains=value[-10:]).exists():
             print("Phone number is already exist")
             raise serializers.ValidationError("Phone number is already exist")
 
-        return super().validate_username(value)
+        return value
 
     def create(self, validated_data: dict):
         """Create user and otp; return otp object"""
@@ -54,6 +58,7 @@ class OTPloginSerializer(BaseOTPSerializer):
     """Use for login otp request"""
 
     def validate_username(self, value: str):
+        value = super().validate_username(value)
         if not CustomUser.objects.filter(phone__icontains=value[-10:]).exists():
             print("Phone number does not exist")
             raise serializers.ValidationError("Phone number does not exist")
@@ -79,13 +84,7 @@ class AddressSerializer(serializers.ModelSerializer):
 
     def validate_postal_code(self, value: str):
         if value:
-            if (
-                self.Meta.model.objects.filter(postal_code=value).exists()
-                and value != self.instance.postal_code
-            ):
-                print("Postal code already exist")
-                raise serializers.ValidationError("Postal code already exist")
-            if not value.isdigit() or not len(value) != 10:
+            if not value.isdigit() or len(value) != 10:
                 print("Invalid postal code")
                 raise serializers.ValidationError("Invalid postal code")
             return value
