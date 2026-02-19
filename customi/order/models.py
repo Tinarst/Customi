@@ -40,7 +40,7 @@ class Order(BaseConfig):
     user = models.ForeignKey(
         CustomUser, on_delete=models.SET_NULL, null=True, related_name="order_user"
     )
-    status = models.CharField(max_length=10, choices=OrderStatus)
+    status = models.IntegerField(choices=OrderStatus)
     shipping_address = models.ForeignKey(
         Address,
         on_delete=models.SET_NULL,
@@ -55,13 +55,20 @@ class Order(BaseConfig):
     objects = OrderManager()
 
 
+class OrderItemManager(models.Manager):
+    def change_status(self, order: Order, status=Order.OrderStatus.PAID):
+        order_items = self.filter(order=order)
+        for item in order_items:
+            item.status = order.status
+            item.save()
+
 class OrderItem(models.Model):
     order = models.ForeignKey(
         Order, on_delete=models.CASCADE, related_name="orderitem_order"
     )
     product_store = models.ForeignKey(
         ProductStore,
-        on_delete=models.DO_NOTHING,
+        on_delete=models.SET_NULL,
         null=True,
         related_name="orderitem_productstore",
     )
@@ -69,7 +76,6 @@ class OrderItem(models.Model):
     price = (
         models.FloatField()
     )  # do not mirroring; if one product update, it'll be change
-
-    @property
-    def total_price(self):
-        return self.quantity * self.price
+    status = models.IntegerField(choices=Order.OrderStatus, default=Order.OrderStatus.PENDING)
+    
+    objects = OrderItemManager()
