@@ -9,11 +9,16 @@ from stock.models import Product
 
 
 class ProductCartSerializer(serializers.ModelSerializer):
-    images = ProductImageSerializer(source="productimage_product", many=True)
+    images = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Product
         fields = ["id", "name", "description", "images"]
+    
+    def get_images(self, obj: Product):
+        image = obj.productimage_product.all().first()
+        image_url = f"http://127.0.0.1:8000/media/{image.image}"
+        return [{"image":image_url}]
 
 
 class CartItemSerializer(serializers.ModelSerializer):
@@ -46,6 +51,13 @@ class CartItemSerializer(serializers.ModelSerializer):
             "store",
             "store_item",
         ]
+    
+    def update(self, instance, validated_data):
+        quantity = validated_data.get("quantity", None)
+        if quantity and int(quantity) > instance.product_store.stock:
+            print("invalid quantity")
+            raise serializers.ValidationError("invalid quantity")
+        return super().update(instance, validated_data)
 
 
 class CartSerializer(serializers.ModelSerializer):
