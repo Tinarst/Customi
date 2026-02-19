@@ -30,17 +30,6 @@ def cart_view(request: Request):
         return Response(data, status=status.HTTP_200_OK)
 
 
-# class CartView(ModelViewSet):
-#     serializer_class = CartSerializer
-#     queryset = Cart.objects.select_related("user")
-#     permission_classes = [IsAuthenticated]
-#     pagination_class = None
-
-#     def list(self, request, *args, **kwargs):
-#         user_cart = Cart.objects.get(user=request.user)
-#         serializer = CartSerializer(instance=user_cart)
-#         return Response(serializer.data, status=status.HTTP_200_OK)
-
 
 def empty_cart(cart: Cart):
     CartItem.objects.filter(cart=cart).delete()
@@ -67,6 +56,13 @@ class CartItemAPIView(ModelViewSet):
     @action(methods=["POST"], detail=True)
     def add_to_cart(self, request, pk=None):
         product_store = get_object_or_404(ProductStore, pk=pk)
+
+        if product_store.stock == 0:
+            print("product store not in stock")
+            return Response(status=status.HTTP_406_NOT_ACCEPTABLE)
+        if not product_store.is_active:
+            print(f"product store from {product_store.store} is not available")
+            return Response(status=status.HTTP_406_NOT_ACCEPTABLE)
 
         cart = self.__get_cart(request.user)
         if not cart:
