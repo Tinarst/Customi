@@ -11,7 +11,6 @@ from core.models.base import BaseConfig
 class CategoryManager(models.Manager): ...
 
 
-
 class Category(models.Model):
     name = models.CharField(max_length=20, unique=True)
     image = models.ImageField(upload_to=PRODUCT_CATEGORY_MEDIA, null=True)
@@ -21,9 +20,12 @@ class Category(models.Model):
         "Category", on_delete=models.CASCADE, null=True, blank=True
     )
 
+    created_by = models.ForeignKey(
+        CustomUser, on_delete=models.DO_NOTHING, null=True, blank=True
+    )
+
     def __str__(self):
         return self.name
-
 
 
 class ProductImage(models.Model):
@@ -32,50 +34,30 @@ class ProductImage(models.Model):
         "Product", on_delete=models.CASCADE, related_name="productimage_product"
     )
 
+
 class ProductQuerySet(QuerySet):
     def with_best_seller(self):
         productstore_subquery = (
-            ProductStore
-            .objects
-            .filter(product=OuterRef("pk"))
+            ProductStore.objects.filter(product=OuterRef("pk"))
             .annotate(total_sold=Coalesce(Sum("orderitem_productstore__quantity"), 0))
             .order_by("-total_sold")
         ).values("pk")[:1]
 
-        return (
-            self
-            .annotate(
-                best_seller=Subquery(productstore_subquery)
-            )
-        )
-    
+        return self.annotate(best_seller=Subquery(productstore_subquery))
+
     def with_rating(self):
-        return (
-            self
-            .annotate(
-                rating=Coalesce(Avg("productfeedback_product__rating"), 0.0)
-            )
+        return self.annotate(
+            rating=Coalesce(Avg("productfeedback_product__rating"), 0.0)
         )
-    
+
     def with_best_price(self):
-        return (
-            self
-            .annotate(
-                best_price=Coalesce(Min("productstore_product__price"), 0.0)
-            )
+        return self.annotate(
+            best_price=Coalesce(Min("productstore_product__price"), 0.0)
         )
-    
-    def with_stock(self):
-        return (
-            self
-            .annotate(
-                stock=Coalesce(Sum("productstore_product__stock"), 0)
-            )
-        )
-    
+
     def products_with_parent(self, category: int):
         categories = set()
-        
+
         def get_category(category):
             categories.add(category)
             category = Category.objects.get(pk=int(category))
@@ -83,50 +65,35 @@ class ProductQuerySet(QuerySet):
             for child in children_cat:
                 if child not in categories:
                     get_category(child)
-            
-        
+
         get_category(int(category))
 
-        return (
-            self
-            .filter(
-                category__id__in=categories
-            )
-        )
-
-
+        return self.filter(category__id__in=categories)
 
 
 class ProductManager(models.Manager):
     def get_queryset(self):
-        return ProductQuerySet(self.model, using=self._db).select_related("category").filter(is_active=True)
-
+        return (
+            ProductQuerySet(self.model, using=self._db)
+            .select_related("category")
+        )
+    
+    def active_products(self):
+        return self.get_queryset().filter(is_active=True)
 
     def with_rating(self):
         """Return product queryset include avg rate"""
 
         return self.get_queryset().with_rating()
 
-
     def with_best_price(self):
         """Return product queryset include best productstore price"""
-        
+
         return self.get_queryset().with_best_price()
 
 
-    def with_stock(self):
-        """Return product queryset include count of instock productstore"""
-        
-        return self.get_queryset().with_stock()
-    
-        
     def products_with_parent(self, category, parent=None):
-        return (
-            self
-            .get_queryset()
-            .products_with_parent(category)
-        )
-        
+        return self.get_queryset().products_with_parent(category)
 
 
 class Product(BaseConfig):
@@ -139,9 +106,11 @@ class Product(BaseConfig):
     )
     description = models.TextField(null=True)
     is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        CustomUser, on_delete=models.DO_NOTHING, null=True, blank=True
+    )
 
     objects = ProductManager()
-
 
     @staticmethod
     def active_filtering(func):
@@ -153,25 +122,26 @@ class Product(BaseConfig):
 
         return wrapper
 
+    
+    @property
+    def stock(self):
+        return self.productstore_product.aggregate(stock=Coalesce(Sum("stock"), 0))["stock"]
 
     @property
     @active_filtering
     def best_seller(self):
         best = (
-            self
-            .productstore_product
-            .annotate(
+            self.productstore_product.annotate(
                 total_sold=Coalesce(Sum("orderitem_productstore__quantity"), 0)
             )
-            .order_by("-total_sold", "price")
+            .order_by("-total_sold", "discount_price" ,"price")
             .first()
         )
         return best if best else None
-    
+
     def __str__(self):
         return self.name
-
-
+    
 
 class StoreManager(models.Manager):
     def get_queryset(self):
@@ -186,7 +156,9 @@ class StoreManager(models.Manager):
 class Store(models.Model):
     name = models.CharField(max_length=50)
     created_at = models.DateTimeField(default=datetime.now)  # read-only for sellers
-    seller = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    seller = models.OneToOneField(
+        CustomUser, on_delete=models.CASCADE, related_name="store_user"
+    )
     logo = models.ImageField(upload_to=f"{STORE_MEDIA}/logo")
     description = models.TextField(null=True)
 
@@ -195,7 +167,7 @@ class Store(models.Model):
     @property
     def is_active(self):
         return self.seller.is_active
-    
+
     def __str__(self):
         return self.name
 
@@ -223,9 +195,10 @@ class ProductStore(BaseConfig):
     price = models.FloatField()
     stock = models.PositiveIntegerField(null=True)
     discount_price = models.FloatField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
 
     objects = ProductStoreManager()
-    
+
     def __str__(self):
         return f"from {self.store} have {self.product}"
 
@@ -251,24 +224,32 @@ class Feedback(models.Model):
     class Meta:
         abstract = True
 
+
 class ProductFeedback(Feedback):
     product = models.ForeignKey(
         Product, on_delete=models.CASCADE, related_name="productfeedback_product"
     )
     user = models.ForeignKey(
-        CustomUser, on_delete=models.SET_NULL, null=True, related_name="productfeedback_user"
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="productfeedback_user",
     )
-    
+
     def __str__(self):
         return f"user {self.user} to {self.product.name}"
+
 
 class StoreFeedback(Feedback):
     store = models.ForeignKey(
         Store, on_delete=models.CASCADE, related_name="storefeedback_store"
     )
     user = models.ForeignKey(
-        CustomUser, on_delete=models.SET_NULL, null=True, related_name="storefeedback_user"
-        )
-    
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="storefeedback_user",
+    )
+
     def __str__(self):
         return f"user {self.user} to {self.store.name}"
