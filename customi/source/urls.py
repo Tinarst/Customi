@@ -22,18 +22,21 @@ from django.conf.urls.static import static
 from rest_framework import routers
 from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView
 
-from stock.views import CategoryViewSet, ProductViewSet, StoreViewSet
+from stock.views import CategoryViewSet, ProductViewSet, StoreViewSet, MyStoreGenericAPIView, MyStoreItemsViewSet
 from account.views import RequestOTP, VerifyOTP, AccountView, AddressViewSet
 from cart.views import cart_view, CartItemAPIView
-from order.views import OrderViewSet
+from order.views import OrderViewSet, MyOrdersViewSet
 
 router = routers.DefaultRouter()
-router.register("api/products", ProductViewSet)
+router.register("api/products", ProductViewSet, basename="product")
 router.register("api/stores", StoreViewSet)
 router.register("api/categories", CategoryViewSet)
 router.register("api/myuser/address", AddressViewSet)
 router.register("api/mycart/items", CartItemAPIView)
 router.register("api/orders", OrderViewSet)
+router.register("api/admin/categories", CategoryViewSet, basename="category-admin")
+router.register("api/mystore/items", MyStoreItemsViewSet, basename="mystore-item")
+router.register("api/mystore/orderitems", MyOrdersViewSet)
 
 urlpatterns = (
     [
@@ -42,10 +45,19 @@ urlpatterns = (
     + [ 
        path("api/accounts/token/refresh/", TokenRefreshView.as_view()),
     ] + [
-        path("api/accounts/request-otp/", RequestOTP.as_view()),
-        path("api/accounts/verify-otp/", VerifyOTP.as_view()),
+        path("api/accounts/request-otp/", RequestOTP.as_view(), name="request-otp"),
+        path("api/accounts/verify-otp/", VerifyOTP.as_view(), name="verify-otp"),
         path("api/myuser/", AccountView.as_view()),
     ] + [
         path("api/mycart/", cart_view),
+    ] +
+    [
+        path("api/myuser/register_as_seller/", MyStoreGenericAPIView.as_view()),
+        path("api/mystore/", MyStoreGenericAPIView.as_view())
     ]
-) + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + router.urls
+)
+
+urlpatterns += router.urls
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
