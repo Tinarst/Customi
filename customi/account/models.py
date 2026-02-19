@@ -132,8 +132,9 @@ class CustomUser(BaseConfig, AbstractUser):
     def normalize_phone(cls, phone):
         return "0" + phone[-10:]
 
+    @property
     def is_seller(self):
-        return True if self.role == self.UserRole.SELLER else False
+        return hasattr(self, "store_user")
 
 
 class Address(BaseConfig):
