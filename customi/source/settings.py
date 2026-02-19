@@ -174,10 +174,41 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5173',
 ]
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '[{asctime}] {levelname} | {name} | {message}',
+            'style': '{',
+        }
+    },
+    'handlers': {
+        'app_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/app.log'),
+            'formatter': 'standard',
+        },
+        'error_file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/error.log'),
+            'formatter': 'standard',
+        },
+    },
+    'loggers': {
+        'customi': {
+            'handlers': ['app_file', 'error_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
 
 
 MEDIA_ROOT = BASE_DIR / 'media'
-MEDIA_URL = 'http://127.0.0.1:8000/media/'
+MEDIA_URL = '/media/'
 USER_MEDIA = 'user'
 PRODUCT_MEDIA = 'products'
 PRODUCT_CATEGORY_MEDIA = f'{PRODUCT_MEDIA}/category'
