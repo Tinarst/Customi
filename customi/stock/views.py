@@ -226,3 +226,7 @@ class MyStoreItemsViewSet(CreateWithCreatorMixin, ModelViewSet):
 
     def get_queryset(self):
         return ProductStore.objects.filter(store__seller=self.request.user)
+    
+    def update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return super().update(request, *args, **kwargs)
