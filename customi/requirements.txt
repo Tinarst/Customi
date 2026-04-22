@@ -4,6 +4,9 @@ djangorestframework_simplejwt
 python-dotenv
 psycopg2-binary
 django-filter
+django_filters
+drf_spectacular
 Pillow
 requests
 djangorestframework-simplejwt
+corsheaders

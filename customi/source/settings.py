@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'drf_spectacular',
     'django_filters',
     'account',
     'stock',
@@ -123,7 +124,13 @@ REST_FRAMEWORK = {
         ],
     "DEFAULT_PAGINATION_CLASS": 'rest_framework.pagination.PageNumberPagination',
     "PAGE_SIZE": 10,
-    "DEFAULT_FILTER_BACKEND": 'django_filter.rest_framework.DjangoFilterBackend'
+    "DEFAULT_FILTER_BACKEND": 'django_filter.rest_framework.DjangoFilterBackend',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Customi',
+    'DESCRIPTION': 'Customi API Documentation',
+    'VERSION': '1.0.0',
 }
 
 SIMPLE_JWT = {
