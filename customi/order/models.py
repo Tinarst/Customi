@@ -76,6 +76,8 @@ class OrderItem(models.Model):
     price = (
         models.FloatField()
     )  # do not mirroring; if one product update, it'll be change
-    status = models.IntegerField(choices=Order.OrderStatus, default=Order.OrderStatus.PENDING)
-    
+    status = models.IntegerField(
+        choices=Order.OrderStatus, default=Order.OrderStatus.PENDING
+    )
+
     objects = OrderItemManager()
