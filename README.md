@@ -1,3 +1,4 @@
+![ERD Diagram](docs/customi_ERD.png)
 # Customi
 The project involves developing a comprehensive online shopping website using Django. The system includes features for customers to browse and purchase products, sellers to manage stores and products, and administrators to oversee operations. Key components encompass user authentication, product management, order processing, payments, and more.
 ## System Features
