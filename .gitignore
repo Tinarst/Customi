@@ -218,5 +218,5 @@ media/
 frontend/
 fixture/
 .DS_Store
-
+**/.DS_Store
 logs
