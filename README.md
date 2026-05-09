@@ -1,8 +1,15 @@
 ![ERD Diagram](docs/customi_ERD.png)
 # Customi
-The project involves developing a comprehensive online shopping website using Django. The system includes features for customers to browse and purchase products, sellers to manage stores and products, and administrators to oversee operations. Key components encompass user authentication, product management, order processing, payments, and more.
+Multi-Vendor E-Commerce Platform (Backend focused)
+A seller-customer platform
+Supports a user with the customer | seller role who can add their own store (1:1) and manages their productstores.
+The seller is also considered a customer.
+Developed backend using Python/DRF. Implemented REST APIs to connect frontend (React.js)
+Data is stored/managed based on the PostgreSQL system
+
+
 ## System Features
-### Public Features
+- "Best Sellers", "Newest Products", and Categories have been aggregated into an endpoint to associated with the home page.
 - Browse products, categories, and stores
 - Search for products and stores by name
 - View product details including name, images, description, price, discount, rating, and reviews
